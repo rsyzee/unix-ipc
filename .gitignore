@@ -1,2 +1,5 @@
 build/
 .cache
+tet.c
+server.c
+client.c
