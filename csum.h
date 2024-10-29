@@ -5,7 +5,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 
-static uint32_t crc32_table[256];
+uint32_t crc32_table[256];
 #ifdef __SSE__
 static void __attribute__((constructor)) init_crc32_table(void) {
     const __m128i polynomial = _mm_set1_epi32(0xEDB88320);
@@ -29,15 +29,24 @@ static void __attribute__((constructor)) init_crc32_table(void) {
 }
 
 static uint32_t calculate_crc32(const void* data, size_t len) {
-    const uint8_t* buf = data;
-    uint32_t crc = 0xFFFFFFFF;
+    const uint8_t* buf = (const uint8_t*)data;
+    __m128i crc = _mm_set1_epi32(0xFFFFFFFF);
     
-    for (size_t i = 0; i < len; i++) {
-        crc = crc32_table[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+    // Process 4 bytes at a time using SSE2
+    for (size_t i = 0; i < len; i += 4) {
+        __m128i data_block = _mm_loadu_si128((const __m128i*)(buf + i));
+        
+        // Extract bytes and do table lookups
+        uint32_t idx = _mm_cvtsi128_si32(data_block);
+        crc = _mm_xor_si128(
+            _mm_srli_epi32(crc, 8),
+            _mm_set1_epi32(crc32_table[(crc[0] ^ idx) & 0xFF])
+        );
     }
     
-    return crc ^ 0xFFFFFFFF;
+    return _mm_cvtsi128_si32(crc) ^ 0xFFFFFFFF;
 }
+
 
 
 #elif defined(__ARM_NEON)
