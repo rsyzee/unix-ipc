@@ -1,12 +1,11 @@
 #ifndef SIMD_CSUM
 #define SIMD_CSUM
-
-#include <emmintrin.h>
-#include <immintrin.h>
 #include <stdint.h>
 
 uint32_t crc32_table[256];
 #ifdef __SSE__
+#include <emmintrin.h>
+
 static void __attribute__((constructor)) init_crc32_table(void) {
     const __m128i polynomial = _mm_set1_epi32(0xEDB88320);
     const __m128i one = _mm_set1_epi32(1);
@@ -46,8 +45,6 @@ static uint32_t calculate_crc32(const void* data, size_t len) {
     
     return _mm_cvtsi128_si32(crc) ^ 0xFFFFFFFF;
 }
-
-
 
 #elif defined(__ARM_NEON)
 #include <arm_neon.h>
