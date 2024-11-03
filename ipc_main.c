@@ -17,10 +17,10 @@ static volatile int g_need_exit = 0;
 
 static void signal_cb(int signum)
 {
-        printf("signal %d detected\n", signum);
+    printf("signal %d detected\n", signum);
 
-        if (signum == SIGINT) {
-                g_need_exit = 1;
+     if (signum == SIGINT) {
+            g_need_exit = 1;
         }
 }
 
@@ -41,7 +41,6 @@ static int _reg_sigaction(void)
         ret = sigaction(SIGPIPE, &sa, NULL);
 
         return 0;
-
 }
 
 static void ipc_ctx_cleanup(struct unix_ipc_ctx *ctx)
@@ -108,6 +107,7 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
 
     ctx->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (ctx->fd == -1) {
+    
         HANDLE_ERROR(ctx, "Failed to create socket", errno);
         free(ctx);
         return NULL;
@@ -170,17 +170,12 @@ int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool*
 
     if (msg->header.magic != IPC_MAGIC ||
         msg->header.version != ipc_handle->protocol_version ||
-        msg->header.payload_len + 1 > ipc_handle->max_msg_size) {
+        msg->header.payload_len > ipc_handle->max_msg_size) {
         HANDLE_ERROR(ipc_handle, "Invalid message header", EINVAL);
         return -1;
     }
 
     ((char*)msg->payload)[msg->header.payload_len] = '\0';
-
-    if (!msg->payload) {
-        HANDLE_ERROR(ipc_handle, "Failed to allocate payload buffer", ENOMEM);
-        return -1;
-    }
 
     // Receive payload
     received = recv(ipc_handle->stream_fd, msg->payload, msg->header.payload_len, MSG_WAITALL);
@@ -206,7 +201,6 @@ int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool*
 static void error_callback(const char* msg, int err) {
     fprintf(stderr, "Error: %s (errno: %d)\n", msg, err);
 }
-
 
 static void build_proto_msg(struct ipc_message_pool* msg, void *src, uint32_t len)
 {
@@ -255,7 +249,7 @@ static void subs_to_server_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
     }
     
     ipc_ctx_cleanup(ctx);
-    free(storage_msg_pool);
+   
 }
 
 static void subs_to_client_event(struct unix_ipc_ctx *ctx, void *storage_msg_pool)
@@ -281,8 +275,10 @@ static void subs_to_client_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
             break;
 
         size_t len = strlen(temp_buffer);
-        if (len > 0 && temp_buffer[len-1] == '\n')
+        if (len > 1 && temp_buffer[len-1] == '\n')
             temp_buffer[--len] = '\0';
+        else
+            continue;
 
         build_proto_msg(&msg_to_send, temp_buffer, len);
         
@@ -297,7 +293,6 @@ static void subs_to_client_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
     }
     
     ipc_ctx_cleanup(ctx);
-    free(storage_msg_pool);
 }
 
 int main(int argc, char **argv)
@@ -334,15 +329,16 @@ int main(int argc, char **argv)
         .error_handler = error_callback
     };
     
-
-    void *msg_buff = calloc(1, MAX_MSG_SIZE );
+    void *msg_pool_buff = calloc(1, MAX_MSG_SIZE);
     if (daemon_mode == 1) {
         struct unix_ipc_ctx *server_ctx = init_ipc_srv_ctx(&config);
-        subs_to_server_event(server_ctx, msg_buff);
-    } else if (daemon_mode ==2) {
+        subs_to_server_event(server_ctx, msg_pool_buff);
+    } else if (daemon_mode == 2) {
         struct unix_ipc_ctx *client_ctx = init_ipc_client_ctx(&config);
-        subs_to_client_event(client_ctx, msg_buff);
+        subs_to_client_event(client_ctx, msg_pool_buff);
     }
+
+    free(msg_pool_buff);
     
     return 0;
 }
