@@ -11,18 +11,18 @@ make -j4
 ```
 
 # IPC Behaviour
-Using simple custom protocol header
-Block I/O until message fully received
-Message payload checksum using CRC32
-Fastly Calculate CRC32 using NEON/ARM Intrinsics
+- Using simple protocol header
+- Block I/O until message fully received
+- Message payload checksum using CRC32
+- Fastly Calculate CRC32 using NEON/ARM Intrinsics
 
 run as server :
 ```sh
-./ipc-server -x
+./ipc-x -s
 ```
 run as client :
 ```sh
-./ipc-server
+./ipc-x -c
 ```
 
 # License
