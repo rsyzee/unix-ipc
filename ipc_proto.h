@@ -24,12 +24,12 @@ enum MSG_TYPE
     IPC_MSG_CLOSE   = 0x08
 };
 
-struct __attribute__((packed)) ipc_message_header  {
-    uint32_t magic;         // Magic number for validation
-    uint16_t version;       // Protocol version
-    uint16_t type;          // Message type
-    uint32_t payload_len;   // Length of payload
-    uint32_t checksum;      // CRC32 of payload
+struct __attribute__((packed)) ipc_message_header {
+    __uint32_t magic;         // Magic number for validation
+    __uint16_t version;       // Protocol version
+    __uint16_t type;          // Message type
+    __uint32_t payload_len;   // Length of payload
+    __uint32_t checksum;      // CRC32 of payload
 };
 
 // Message structure

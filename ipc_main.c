@@ -12,6 +12,9 @@
 #include "ipc_proto.h"
 #include "csum.h"
 
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+
 static volatile int g_need_exit = 0;
 
 
@@ -65,7 +68,7 @@ static struct unix_ipc_ctx *init_ipc_srv_ctx(const struct ipc_config* ipc_proto_
     ctx->is_server = 1;
 
     ctx->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (ctx->fd == -1) {
+    if (unlikely(ctx->fd == -1)) {
         HANDLE_ERROR(ctx, "Failed to create socket", errno);
         free(ctx);
         return NULL;
@@ -85,7 +88,7 @@ static struct unix_ipc_ctx *init_ipc_srv_ctx(const struct ipc_config* ipc_proto_
         return NULL;
     }
 
-    if (listen(ctx->fd, 5) == -1) {
+    if (unlikely(listen(ctx->fd, 12) == -1)) {
         HANDLE_ERROR(ctx, "Failed to listen on socket", errno);
         ipc_ctx_cleanup(ctx);
         return NULL;
@@ -98,7 +101,7 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
     if (!ipc_proto_config || !ipc_proto_config->socket_path) return NULL;
 
     struct unix_ipc_ctx* ctx = calloc(1, sizeof(struct unix_ipc_ctx));
-    if (!ctx) return NULL;
+    if (unlikely(!ctx)) return NULL;
 
     ctx->max_msg_size = ipc_proto_config->max_msg_size;
     ctx->protocol_version = ipc_proto_config->protocol_version;
@@ -106,7 +109,7 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
     ctx->is_server = 0;
 
     ctx->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (ctx->fd == -1) {
+    if (unlikely(ctx->fd == -1)) {
     
         HANDLE_ERROR(ctx, "Failed to create socket", errno);
         free(ctx);
@@ -126,13 +129,12 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
         ipc_ctx_cleanup(ctx);
         return NULL;
     }
-    
 
     return ctx;
 }
 
 static int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
-    if (!ipc_handle || !msg || !msg->payload) return -1;
+    if (unlikely(!ipc_handle || !msg || !msg->payload)) return -1;
 
     // Validate message
     if (msg->header.magic != IPC_MAGIC ||
@@ -159,8 +161,8 @@ static int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool
     return 0;
 }
 
-int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
-    if (!ipc_handle || !msg) return -1;
+static int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
+    if (unlikely(!ipc_handle || !msg)) return -1;
 
     ssize_t received = recv(ipc_handle->stream_fd, &msg->header, sizeof(struct ipc_message_header), MSG_WAITALL);
     if (received != sizeof(struct ipc_message_header)) {
@@ -225,6 +227,9 @@ static void subs_to_server_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
         }
     };
 
+    const char *message_reply = "OK, I Received Your Message";
+    size_t len = strlen(message_reply);
+
     while (!g_need_exit)
     {
         if ((ctx->stream_fd = accept(ctx->fd, 0, 0)) == -1)
@@ -239,8 +244,7 @@ static void subs_to_server_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
 
             printf("Received: %s\n", (const char*)recv_msg.payload);
 
-            const char *msg = "OK, I Received Your Message";
-            build_proto_msg(&msg_to_send, (void*)msg, strlen(msg));
+            build_proto_msg(&msg_to_send, (void*)message_reply, len);
             ipc_send_msg(ctx, &msg_to_send);
         }
 
@@ -280,11 +284,10 @@ static void subs_to_client_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
         else
             continue;
 
-        build_proto_msg(&msg_to_send, temp_buffer, len);
+        build_proto_msg(&msg_to_send, temp_buffer, sizeof(temp_buffer));
         
         if (ipc_send_msg(ctx, &msg_to_send) != 0)
             break;
-
 
         if (ipc_recv_msg(ctx, &recv_msg) != 0)
             break;
