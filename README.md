@@ -7,6 +7,7 @@ Is a Interprocess Communication (IPC) using AF_UNIX socket. used to communicate 
 - Message payload checksum using CRC32
 - Fastly Calculate CRC32 using NEON/ARM Intrinsics
 
+
 # Installation & run
 ```sh
 git clone https://github.com/ryszee/unix-ipc.git
