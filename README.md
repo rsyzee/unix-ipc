@@ -1,7 +1,7 @@
 # unix-ipc
 Is a Interprocess Communication (IPC) using AF_UNIX socket. used to communicate and sharing data between processes.
 
-# IPC Behaviour
+# IPC Behavior
 - Using simple protocol header
 - Block I/O until message fully received
 - Message payload checksum using CRC32
