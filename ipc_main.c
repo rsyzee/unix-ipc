@@ -1,3 +1,4 @@
+#include <bits/types.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -12,11 +13,23 @@
 #include "ipc_proto.h"
 #include "csum.h"
 
-#define likely(x)      __builtin_expect(!!(x), 1)
-#define unlikely(x)    __builtin_expect(!!(x), 0)
+#ifndef __cold
+#define __cold __attribute__((__cold__))
+#endif
+
+#ifndef __hot
+#define __hot __attribute__((__hot__))
+#endif
+
+#ifndef likely
+#define likely(x) __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
 
 static volatile int g_need_exit = 0;
-
 
 static void signal_cb(int signum)
 {
@@ -110,7 +123,6 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
 
     ctx->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (unlikely(ctx->fd == -1)) {
-    
         HANDLE_ERROR(ctx, "Failed to create socket", errno);
         free(ctx);
         return NULL;
@@ -133,7 +145,8 @@ struct unix_ipc_ctx *init_ipc_client_ctx(const struct ipc_config* ipc_proto_conf
     return ctx;
 }
 
-static int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
+__hot 
+int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
     if (unlikely(!ipc_handle || !msg || !msg->payload)) return -1;
 
     // Validate message
@@ -153,7 +166,7 @@ static int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool
 
     // Send payload
     sent = send(ipc_handle->stream_fd, msg->payload, msg->header.payload_len, MSG_NOSIGNAL);
-    if (sent != msg->header.payload_len) {
+        if (sent != msg->header.payload_len) {
         HANDLE_ERROR(ipc_handle, "Failed to send payload", errno);
         return -1;
     }
@@ -161,7 +174,8 @@ static int ipc_send_msg(struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool
     return 0;
 }
 
-static int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
+__hot
+int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_message_pool* msg) {
     if (unlikely(!ipc_handle || !msg)) return -1;
 
     ssize_t received = recv(ipc_handle->stream_fd, &msg->header, sizeof(struct ipc_message_header), MSG_WAITALL);
@@ -190,7 +204,7 @@ static int ipc_recv_msg(const struct unix_ipc_ctx *ipc_handle, struct ipc_messag
    
     // Verify checksum
     uint32_t checksum = calculate_crc32(msg->payload, msg->header.payload_len);
-    if (checksum != msg->header.checksum) {
+    if (unlikely(checksum != msg->header.checksum)) {
         HANDLE_ERROR(ipc_handle, "Checksum verification failed", EINVAL);
         free(msg->payload);
         msg->payload = NULL;
@@ -227,13 +241,11 @@ static void subs_to_server_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
         }
     };
 
-    const char *message_reply = "OK, I Received Your Message";
-    size_t len = strlen(message_reply);
-
     while (!g_need_exit)
     {
+        //TODO: using epoll() SO CPU NOT OVRTHEAT.
         if ((ctx->stream_fd = accept(ctx->fd, 0, 0)) == -1)
-            continue;//wait the client to connect
+            continue;//wait the client to connect 
         
         printf("server: client acceppted\n");
         
@@ -244,8 +256,6 @@ static void subs_to_server_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
 
             printf("Received: %s\n", (const char*)recv_msg.payload);
 
-            build_proto_msg(&msg_to_send, (void*)message_reply, len);
-            ipc_send_msg(ctx, &msg_to_send);
         }
 
         close(ctx->stream_fd);
@@ -281,18 +291,13 @@ static void subs_to_client_event(struct unix_ipc_ctx *ctx, void *storage_msg_poo
         size_t len = strlen(temp_buffer);
         if (len > 1 && temp_buffer[len-1] == '\n')
             temp_buffer[--len] = '\0';
-        else
-            continue;
+        else continue;
 
         build_proto_msg(&msg_to_send, temp_buffer, sizeof(temp_buffer));
         
         if (ipc_send_msg(ctx, &msg_to_send) != 0)
             break;
 
-        if (ipc_recv_msg(ctx, &recv_msg) != 0)
-            break;
-        
-        printf("Server response: %s\n", (const char*)recv_msg.payload);
     }
     
     ipc_ctx_cleanup(ctx);
