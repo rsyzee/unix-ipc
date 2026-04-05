@@ -1,27 +1,28 @@
 # unix-ipc
-Is a Interprocess Communication (IPC) using AF_UNIX socket. used to communicate and sharing data between processes.
+A lightweight Interprocess Communication (IPC) library using AF_UNIX sockets for efficient data exchange between processes.
 
-# IPC Behavior
-- Using simple protocol header
-- Block I/O until message fully received
-- Message payload checksum using CRC32
-- Fastly Calculate CRC32 using NEON/ARM Intrinsics
+# Behavior
+- Simple and minimal protocol header
+- Blocking I/O (waits until full message is received)
+- CRC32 checksum for payload integrity
+- Optimized CRC32 using hardware intrinsics
 
 
-# Installation & run
+# Build & Run
 ```sh
 git clone https://github.com/ryszee/unix-ipc.git
 cd unix-ipc
 mkdir build
 cd build
 cmake ..
-make -j4 
+make -j4
 ```
-run as server :
+# Usage
+Run as server :
 ```sh
 ./ipc-x -s
 ```
-run as client :
+Run as client :
 ```sh
 ./ipc-x -c
 ```
